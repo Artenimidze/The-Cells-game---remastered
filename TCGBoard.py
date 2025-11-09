@@ -1,4 +1,4 @@
-from TCGCell import Cell, get_color, Energy, TILE_SIZE, get_side
+from TCGCell import Cell, get_color, Energy, TILE_SIZE, get_side, TYPE_CELL
 import pyglet
 from Settings import Settings
 from random import shuffle
@@ -6,6 +6,8 @@ from enum import Enum, auto
 from typing import Literal
 from pyglet.math import Vec2
 from time import time
+from itertools import cycle
+
 
 settings = Settings()
 settings.load()
@@ -14,11 +16,11 @@ class SoundEffects:
     SoundName = Literal['reaction', 'click', 'warn', 'start', 'game_over']
     
     sounds = {
-        'reaction': pyglet.media.load('src/sounds/boom.ogg', streaming=False),
-        'click': pyglet.media.load('src/sounds/button.ogg', streaming=False),
-        'warn': pyglet.media.load('src/sounds/error.ogg', streaming=False),
-        'start': pyglet.media.load('src/sounds/start.ogg', streaming=False),
-        'game_over': pyglet.media.load('src/sounds/win.ogg', streaming=False)
+        'reaction': pyglet.media.load('src/sounds/boom.wav', streaming=False),
+        'click': pyglet.media.load('src/sounds/button.wav', streaming=False),
+        'warn': pyglet.media.load('src/sounds/error.wav', streaming=False),
+        'start': pyglet.media.load('src/sounds/start.wav', streaming=False),
+        'game_over': pyglet.media.load('src/sounds/win.wav', streaming=False)
     }
     
     sound_enabled = settings.sound_effects
@@ -44,6 +46,7 @@ class Players:
     def __init__(self, players=None):
         
         self.players = players or list()
+        self.ptr = None
     
     def join(self, *args):
         self.players.extend(args)
@@ -77,7 +80,7 @@ class Players:
         self.ptr = self.ptr.next
 
     def current(self):
-        return self.ptr.value
+        return self.ptr.value if self.ptr is not None else Energy.NEUTRAL
     
     def queue(self):
         lst = []
@@ -127,11 +130,129 @@ class Players:
 class Modes(Enum):
     OLD = auto()
     CLASSIC = auto()
+    EXTENDED = auto()
     RECHARGED = auto()
     DOUBLING = auto()
     HIDDEN = auto()
     
-
+    
+class GameStateAttribute(Enum):
+    DEFAULT = auto()
+    READY = auto()
+    WATING = auto()
+    REACTION = auto()
+    FINISH = auto()
+    EDIT = auto()
+    BUILD = auto()
+    
+class Saver:
+    def __init__(self, cells):
+        self.cells = cells
+        
+    def save_classic(self):
+        cell_buffer = []
+        cells = []
+        links = []
+        index = 0
+        for pos, cell in self.cells.items():
+            cell.model.mark = index
+            cell_buffer.append(cell.model)
+            row, col = pos
+            cells.append(f'{row} {col}')
+            index += 1
+        index = 0
+        for c in cell_buffer:
+            out = {i.mark for i in c.outgoing_links}
+            in_ = {i.mark for i in c.incoming_links}
+            two = out & in_
+            out -= two
+            in_ -= two
+            
+            for ol in out:
+                if ol < index:
+                    continue
+                links.append(f'{index} {ol} 0')
+            for il in in_:
+                if il< index:
+                    continue
+                links.append(f'{index} {il} 1')
+            for tl in two:
+                if tl < index:
+                    continue
+                links.append(f'{index} {tl} 2')
+            index += 1
+        
+        
+        
+        return  {
+    "meta": {
+        "version": "0.0.2",
+        "name": "",
+        "creation_time": time(),
+        "description": "",
+        "author": None,
+        "modes": [Modes.CLASSIC.value],
+        "property": None
+    },
+    "scheme": {
+        "scanfmt": "ROW COL \\ CI0 CI1 TL",
+        "cells": ' '.join(cells),
+        "links": ' '.join(links)
+    }
+}
+    def save_extanded(self):
+        cell_buffer = []
+        cells = []
+        links = []
+        index = 0
+        for pos, cell in self.cells.items():
+            cell.model.mark = index
+            cell_buffer.append(cell.model)
+            row, col = pos
+            cells.append(f'{row} {col} {TYPE_CELL.index(type(cell))}')
+            index += 1
+        index = 0
+        for c in cell_buffer:
+            out = {i.mark for i in c.outgoing_links}
+            in_ = {i.mark for i in c.incoming_links}
+            two = out & in_
+            out -= two
+            in_ -= two
+            
+            for ol in out:
+                if ol < index:
+                    continue
+                links.append(f'{index} {ol} 0')
+            for il in in_:
+                if il< index:
+                    continue
+                links.append(f'{index} {il} 1')
+            for tl in two:
+                if tl < index:
+                    continue
+                links.append(f'{index} {tl} 2')
+            index += 1
+        
+        
+        
+        return  {
+    "meta": {
+        "version": "0.0.2",
+        "name": "",
+        "creation_time": time(),
+        "description": "",
+        "author": None,
+        "modes": [Modes.EXTENDED.value],
+        "property": None
+    },
+    "scheme": {
+        "scanfmt": "ROW COL TC\\ CI0 CI1 TL",
+        "cells": ' '.join(cells),
+        "links": ' '.join(links)
+    }
+}
+        
+from TCGtools import link_cell
 class Builder:
     def __init__(self, scheme, batch):
         self.scheme = scheme
@@ -142,8 +263,89 @@ class Builder:
     def get_product(self):
         return self.product
     
+    def build_classic(self):
+        self.build_task = self._build_classic()
+    
     def _build_classic(self):
-        pass
+        cells_d = dict()
+        scheme = self.scheme.get("scheme")
+        scanfmt: str = scheme.get("scanfmt")
+        cells = iter(scheme.get("cells").split())
+        links = iter(scheme.get("links").split())
+        cellf, linkf = scanfmt.lower().split('\\')
+        cellf = cellf.split()
+        linkf = linkf.split()
+        
+        cell_buffer = []
+        
+        
+        for args in zip(*([cells]*len(cellf))):
+            d = self._read_scan_str(cellf, args)
+            row, col = int(d.get('row')), int(d.get('col'))
+            cell = Cell((row, col), self.batch)
+            cell_buffer.append(cell)
+            yield
+            
+        for args in zip(*([links]*len(linkf))):
+            d = self._read_scan_str(linkf, args)
+            c1, c2, tl = int(d.get('ci0')), int(d.get('ci1')), int(d.get('tl'))
+            a, b = cell_buffer[c1], cell_buffer[c2]
+            link_cell(a, b, type=tl)
+            yield
+          
+        for cell in cell_buffer:
+            cell: Cell
+            cell.view.render_sides()
+            cell.view.render_sensor()
+            cell.view.update()
+            cells_d[cell.model.position] = cell
+            yield
+
+        self.product = cells_d
+        
+    def build_extended(self):
+        self.build_task = self._build_extended()
+        
+    def _build_extended(self):
+        cells_d = dict()
+        scheme = self.scheme.get("scheme")
+        scanfmt: str = scheme.get("scanfmt")
+        cells = iter(scheme.get("cells").split())
+        links = iter(scheme.get("links").split())
+        cellf, linkf = scanfmt.lower().split('\\')
+        cellf = cellf.split()
+        linkf = linkf.split()
+        
+        cell_buffer = []
+        
+        
+        for args in zip(*([cells]*len(cellf))):
+            d = self._read_scan_str(cellf, args)
+            row, col, tc = int(d.get('row')), int(d.get('col')), int(d.get('tc', 0))
+            cell = TYPE_CELL[tc]((row, col), self.batch)
+            cell_buffer.append(cell)
+            yield
+            
+        for args in zip(*([links]*len(linkf))):
+            d = self._read_scan_str(linkf, args)
+            c1, c2, tl = int(d.get('ci0')), int(d.get('ci1')), int(d.get('tl'))
+            a, b = cell_buffer[c1], cell_buffer[c2]
+            link_cell(a, b, type=tl)
+            yield
+          
+        for cell in cell_buffer:
+            cell: Cell
+            cell.view.render_sides()
+            cell.view.render_sensor()
+            cell.view.update()
+            cells_d[cell.model.position] = cell
+            yield
+
+        self.product = cells_d
+        
+    @staticmethod
+    def _read_scan_str(fmt, args):
+        return dict(zip(fmt, args))
     
     def build_old(self):
         self.build_task = self._build_old()
@@ -232,14 +434,6 @@ class ParticleManager:
             p.destroy()
         self.contain.clear()    
     
-class GameStateAttribute(Enum):
-    DEFAULT = auto()
-    READY = auto()
-    WATING = auto()
-    REACTION = auto()
-    FINISH = auto()
-    EDIT = auto()
-    BUILD = auto()
     
 class GameBoardState:
     def __init__(self, master: 'GameBoard'):
@@ -308,8 +502,12 @@ class GameBoardStateBuild(GameBoardState):
             return
         
         self.master.cells = self.master.builder.get_product()
-        self.switch_state(GameBoardStateWating)
-        self.master.players.restart()
+        
+        try:
+            self.master.players.restart()
+            self.switch_state(GameBoardStateWating)
+        except:
+            self.switch_state(GameBoardStateReady)
         SoundEffects.play('start')
     
     def draw(self):
@@ -388,7 +586,8 @@ class GameBoardStateReaction(GameBoardState):
                 cell.model.fill()
                 cell.view.update()
                 f_full = f_full or cell.model.is_full()
-                lose.discard(cell.model.owner)
+                if cell.model.is_considered():
+                    lose.discard(cell.model.owner)
             for loser in lose:
                 self.master.players.kick(loser)
             if self.master.players.has_winner():
@@ -422,47 +621,19 @@ class Tools(Enum):
     LINK = auto()
     DELETE = auto()
 
+from TCGEditor import Editor
+
 class GameBoardStateEdit(GameBoardState):
     def __init__(self, master):
         super().__init__(master)
 
-        self._tool = Tools.CREATE
-        self._select = None
+        self._editor = Editor(self)
 
     def phase(self):
         return GameStateAttribute.EDIT
     
-    def hit(self, row, col, player=None):
-        cell: Cell =  self.master.cells.get((row, col))
-        if cell is not None:
-            match self._tool:
-                case Tools.DELETE:
-                    out = [c for out_cell in cell.model.incoming_links if (c:=self.master.cells.get(out_cell.position)) is not None]
-                    cell.delete()
-                    self.master.cells.pop((row, col))
-                    for c in out:
-                        c: Cell
-                        c.view.render_sides()
-                        c.view.render_sensor()
-                        c.view.update()
-                case Tools.LINK:
-                    if self._select is None:
-                        self._select = cell
-                    elif get_side(self._select.model, cell.model):
-                        
-                        self._select.model.link(cell.model)
-                        self._select.view.render_sides()
-                        self._select.view.render_sensor()
-                        self._select.view.update()
-                        self._select = None
-        else:
-            match self._tool:
-                case Tools.CREATE:
-                    new = Cell((row, col), self.master.batch)
-                    new.view.render_sides()
-                    new.view.render_sensor()
-                    new.view.update()
-                    self.master.cells[(row, col)] = new
+    def update(self, dt):
+        self._editor.update(dt)
 
 class GameBoardStateReady(GameBoardState):
 
@@ -486,9 +657,15 @@ class GameBoard:
     def build(self, scheme):
         self.builder = Builder(scheme, self.batch)
     
-    def save(self):
-
-        return ' '.join([f'{int(r)} {int(w)}' for r, w in self.cells])
+    def save(self, mod=Modes.EXTENDED):
+        match mod:
+            case Modes.CLASSIC:
+                return Saver(self.cells).save_classic()
+            case Modes.EXTENDED:
+                 return Saver(self.cells).save_extanded()
+            case _:
+                raise ValueError("Неизвестный режим игры")
+        
     
     def restart(self, mod=Modes.OLD, ext=None): 
         for cell in self.cells.values():
@@ -503,6 +680,8 @@ class GameBoard:
                 self.builder.build_old()
             case Modes.RECHARGED:
                 self.builder.build_recharged()
+            case Modes.EXTENDED:
+                self.builder.build_extended()
             case _:
                 raise ValueError("Неизвестный режим игры")
         self.state = GameBoardStateBuild(self)        
@@ -551,3 +730,5 @@ EVENTS = [
 ]
 for event in EVENTS:
     EventableGameBoard.register_event_type('on_board_' + event)   
+    
+print(Modes.EXTENDED.value)
