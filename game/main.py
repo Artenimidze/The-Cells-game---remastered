@@ -13,7 +13,7 @@ from core.TCGlogic.TCGCell import Energy, get_color
 from core.TCGlogic.TCGBoard import GameStateAttribute as GSA, GameBoard
 from core.TCGlogic.TCGtools import Cursor, HoverInspector
 from core.TCGlogic.TCGBoard import Modes
-from core.Pyglet.Scene import Scene
+from core.Pyglet.Scene import Scene, SettingsMenu
 import json
 from pyglet.math import Vec2
 from core.networking.client import GameClient
@@ -495,9 +495,10 @@ class Menu(Scene):
         px, py = 340, 300
         bg = [(32,32,32, 128),(0,0,0, 128) ]
         self.ui = [
-            PanelTextButton('Локальная игра', (50,50, 150), (50, 50, 250), 24, px, h-py/2-50, w-px*2, h/3-100, *bg, .5,batch=self.batch),
-            PanelTextButton("Сетевая игра", (50,150, 50), (50, 250, 50), 24, px, h-py/2-h/3-50, w-px*2, h/3-100, *bg, .5,batch=self.batch),
-            PanelTextButton("Выйти",(150,50, 50), (250, 50, 50), 24, px, h-py/2-h/3-h/3-50, w-px*2, h/3-100, *bg, .5,batch=self.batch ),
+            PanelTextButton('Локальная игра', (50,50, 150), (50, 50, 250), 24, px, h-py/2, w-px*2, h/3-125, *bg, .5,batch=self.batch),
+            PanelTextButton("Сетевая игра", (50,150, 50), (50, 250, 50), 24, px, h-py/2-h/4, w-px*2, h/3-125, *bg, .5,batch=self.batch),
+            PanelTextButton("Настройки",(150, 150, 150), (200, 200, 200), 24, px, h-py/2-h/4-h/4, w-px*2, h/3-125, *bg, .5,batch=self.batch ),
+            PanelTextButton("Выйти",(150,50, 50), (250, 50, 50), 24, px, h-py/2-(h/4)*2-h/4, w-px*2, h/3-125, *bg, .5,batch=self.batch ),
         ]
 
         for ui in self.ui:
@@ -516,6 +517,8 @@ class Menu(Scene):
                 self._master._scene = TCGGame(self._master)
             case "Сетевая игра":
                 self._master._scene = TCGNetWorkGame(self._master)
+            case "Настройки":
+                self._master._scene = SettingsMenu(self._master)
             case "Выйти":
                 pyglet.app.exit()
 

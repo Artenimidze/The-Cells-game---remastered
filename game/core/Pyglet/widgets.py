@@ -1,5 +1,5 @@
 import pyglet
-from pyglet.shapes import Rectangle
+from pyglet.shapes import Rectangle, Line
 from core.Pyglet.util import MouseEvent, rgba
 from pyglet.math import Vec4
 
@@ -102,4 +102,30 @@ class PanelTextButton(PanelButton):
         cx, cy = x + w/2, y + h/2
         self.label = pyglet.text.Label(text, cx,cy,0,anchor_x="center",anchor_y='center', font_size=text_size, color=text_color,batch=batch)
         self.text_color, self.text_hover_color = rgba(text_color), rgba(text_hover_color)
-        
+
+class CheckBox(PanelTextButton):
+    """Виджет чекбокса. Адаптивная поебота"""
+    def __init__(self, text, text_color, text_hover_color, text_size, x, y, w, h, c, hc, ht, batch, toggled):
+        super().__init__(text, text_color, text_hover_color, text_size, x, y, w, h, c, hc, ht, batch)
+        self.label.anchor_x='center'
+        self.draw_outline(self.label.x-self.label.content_width/2-text_size*1.3, self.label.y-text_size/1.5, text_size/2, (255,255,255), batch=batch)
+        self.draw_checkmark(self.label.x-self.label.content_width/2-text_size*1.3, self.label.y-text_size/1.5, text_size/2, (255,255,255), batch=batch)
+        self.toggled = toggled
+        self.checkmark_line1.visible = toggled
+        self.checkmark_line2.visible = toggled
+            
+
+    def toggle(self):
+        self.toggled = not self.toggled
+        self.checkmark_line1.visible = self.toggled
+        self.checkmark_line2.visible = self.toggled
+
+    def draw_outline(self, x, y, w, color, batch):
+        self.line1 = Line(x, y, x+w*2, y, thickness=2, color=color, batch=batch)
+        self.line2 = Line(x+w*2, y, x+w*2, y+w*2, thickness=2, color=color, batch=batch)
+        self.line3 = Line(x, y+w*2, x+w*2, y+w*2, thickness=2, color=color, batch=batch)
+        self.line4 = Line(x, y+w*2, x, y, thickness=2, color=color, batch=batch)
+
+    def draw_checkmark(self, x, y, w, color, batch):
+        self.checkmark_line1 = Line(x+w, y+w/2, x+w*1.6, y+w*1.6, thickness=2, color=color, batch=batch)
+        self.checkmark_line2 = Line(x+w/1.7, y+w*1.1, x+w, y+w/2, thickness=2, color=color, batch=batch)
