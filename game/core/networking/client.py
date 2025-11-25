@@ -27,6 +27,7 @@ class NetClient(EventDispatcher):
         self.update_queue = deque()
         self.buffer = b''
         self.use_queue=use_queue
+        self.socket.settimeout(5)
         logging.debug("NetClient создан")
         if self.connect()==0:
             self._is_connected=True
@@ -35,6 +36,8 @@ class NetClient(EventDispatcher):
             time.sleep(0.1)
             self.thread = threading.Thread(target=self.network_loop, daemon=True)
             self.thread.start()
+        else:
+            raise ConnectionError()
 
     @property
     def is_connecting(self) -> bool:
@@ -56,7 +59,6 @@ class NetClient(EventDispatcher):
         attempt=1
         while attempt<=4:
             try:
-                self.socket.settimeout(5)
                 self.socket.connect((self.server_host, self.server_port))
                 logging.info("Клиент подключён!")
                 self.socket.setblocking(False)
@@ -77,6 +79,7 @@ class NetClient(EventDispatcher):
                     self.dispatch_event("on_disconnect")
                     return 2
                 logging.warning(f"Истекло время ожидания для {self.server_host}:{self.server_port}! Переподключение... ({attempt}/3)")
+                time.sleep(1)
                 attempt+=1
             except OSError:
                 pass

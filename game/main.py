@@ -337,8 +337,12 @@ class TCGNetWorkGame(Scene):
         HOST, PORT = NET.get('ip', 'localhost'), int(NET.get('port',12345))
         self.hits = []
         self.flag = False
-        
-        self.client = GameClient(HOST, PORT, NET.get('password'), ACCOUNT.get('password'), NAME)
+        self.client = None
+        try:
+            self.client = GameClient(HOST, PORT, NET.get('password'), ACCOUNT.get('password'), NAME)
+        except ConnectionError:
+            self.on_disconnect()
+            return
         self.client.push_handlers(self)
         self.camera.update_projection()
         
@@ -394,16 +398,18 @@ class TCGNetWorkGame(Scene):
         self.tasks.append(task)
 
     def on_close(self):
-        self.client.send(
-            {
-                "code": Protocol.CODE.QUIT.value,
-            }
-        )
+        if self.client:
+            self.client.send(
+                {
+                    "code": Protocol.CODE.QUIT.value,
+                }
+            )
 
     def debug(self):
         x ,y = self.camera.screen_to_world(self.mouse.data.get('x',0), self.mouse.data.get('y',0))
         game = f'Phase: {self.game.phase().name}\n' + '' if self.game.state.phase() != GSA.EDIT else self.game.state._editor.debug()
-        return f'Cursor world position: x={x} y={y}\n' + game + str(self.remote_players) + f"\nTPS:{self.tps_count}" + f"\nHeartBeat:{self.client.heartbeat_count}"
+        net = f'\nTPS:{self.tps_count}\nHeartBeat:{self.client.heartbeat_count}' if self.client else ''
+        return f'Cursor world position: x={x} y={y}\n' + game + str(self.remote_players) + net
 
     def draw(self):
         with self.camera:
@@ -450,12 +456,13 @@ class TCGNetWorkGame(Scene):
         self.game.update(dt)
         new_pos = self.player.position
         
-        if self.tps_count == 0 and new_pos != self.old_pos:
+        if self.tps_count == 0 and new_pos != self.old_pos and self.client:
             message = {"code": Protocol.CODE.MOVE.value, "name": self.player.name, 'move': self.player.position, 'time': time()}
             self.client.send(message)
             self.old_pos = new_pos
 
-        self.client.update()
+        if self.client:
+            self.client.update()
         
         for t in self.tasks:
             t()
