@@ -1,7 +1,7 @@
 import pyglet
 from core.Pyglet.Background import Background
 from core.Settings import Settings
-from core.Pyglet.widgets import CheckBox
+from core.Pyglet.widgets import CheckBox, DropDownMenu
 
 settings = Settings()
 settings.load()
@@ -45,7 +45,8 @@ class SettingsMenu(Scene):
         bg = [(32,32,32, 128),(0,0,0, 128) ]
 
         self.ui = [
-            CheckBox("Какая-то херня",(200,200, 200), (250, 250, 250), 24, px, h-py/2-(h/4)*2-h/4, w-px*2, h/3-125, *bg, .5,batch=self.batch, toggled=False)
+            CheckBox("Какая-то херня",(200,200, 200), (250, 250, 250), 24, px, h-py/2-(h/4)*2-h/4, w-px*2, h/3-125, *bg, .5,batch=self.batch, toggled=False, float='left'),
+            DropDownMenu(self, "Пенис", (200,200, 200), (250, 250, 250), 24, px, h-py/2-(h/4)*2, w-px*2, h/3-125, *bg, .5,batch=self.batch, items=['1', '2', '3'], custom_name='pizda')
         ]
 
         for ui in self.ui:
@@ -61,7 +62,10 @@ class SettingsMenu(Scene):
             ui.update(dt)
 
     def on_widget_click(self, button):
-        cmd =  button.label.text
+        print(button.custom_name)
+        cmd =  button.custom_name
         match cmd:
             case "Какая-то херня":
+                button.toggle()
+            case "pizda":
                 button.toggle()
