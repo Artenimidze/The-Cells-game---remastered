@@ -100,13 +100,20 @@ class PanelTextButton(PanelButton):
                 self.master.view.color = lerp_color(self.master.color,self.master.hover_color,self.timer / self.master.hover_time)
                 self.master.label.color = lerp_color(self.master.text_color,self.master.text_hover_color,self.timer / self.master.hover_time)
                 
-    def __init__(self, text, text_color, text_hover_color, text_size, x, y, w, h, c, hc, ht, batch, custom_name=None, visible=True):
+    def __init__(self, text, text_color, text_hover_color, text_size, x, y, w, h, c, hc, ht, batch, custom_name=None, visible=True, anchor: Literal['left', 'center', 'right']='center'):
         if not custom_name:
             custom_name = text
         super().__init__(x, y, w, h, c, hc, ht, batch, custom_name, visible=visible)
         cx, cy = x + w/2, y + h/2
         self.label = pyglet.text.Label(text, cx,cy,0,anchor_x="center",anchor_y='center', font_size=text_size, color=text_color,batch=batch)
         self.label.visible=visible
+        match anchor:
+            case 'left':
+                self.label.x = x+self.label.content_width/2+10
+            case 'center':
+                pass
+            case 'right':
+                self.label.x = x+w/2+self.label.content_width/2+10
         self.text_color, self.text_hover_color = rgba(text_color), rgba(text_hover_color)
 
     def visible(self, visibility: bool=True):
@@ -115,26 +122,17 @@ class PanelTextButton(PanelButton):
 
 class DropDownMenu(PanelTextButton):
     """Виджет выпадающего меню"""
-    def __init__(self,master, text, text_color, text_hover_color, text_size, x, y, w, h, c, hc, ht, batch, items, custom_name, float: Literal['left', 'center', 'right']='left'):
-        super().__init__(text, text_color, text_hover_color, text_size, x, y, w, h, c, hc, ht, batch, custom_name=custom_name)
+    def __init__(self,master, text, text_color, text_hover_color, text_size, x, y, w, h, c, hc, ht, batch, items, custom_name, anchor: Literal['left', 'center', 'right']='left'):
+        super().__init__(text, text_color, text_hover_color, text_size, x, y, w, h, c, hc, ht, batch, custom_name=custom_name, anchor=anchor)
         self.label.anchor_x='center'
         self.toggled = False
         self.children = []
         self._master = master
-        match float:
-            case 'left':
-                self.label.x = x+self.label.content_width/2
-            case 'center':
-                pass
-            case 'right':
-                self.label.x = x+w/2+self.label.content_width/2
         for num, item in enumerate(items):
-            child = PanelTextButton(item, text_color, text_hover_color, text_size, x, y-h*(num+1), w, h, c, hc, ht, batch=batch, visible=True, custom_name=f'{custom_name}_{item}')
+            child = PanelTextButton(item, text_color, text_hover_color, text_size, x, y-h*(num+1), w, h, c, hc, ht, batch=batch, visible=False, custom_name=f'{custom_name}_{item}', anchor=anchor)
             self.children.append(
                 child
             )
-            child.push_handlers(self._master)
-            self._master.push_handlers(child)
         
 
     def toggle(self):
@@ -147,19 +145,11 @@ class DropDownMenu(PanelTextButton):
         for children in self.children:
             children.update(dt)
 
-
 class CheckBox(PanelTextButton):
     """Виджет чекбокса. Адаптивная поебота"""
-    def __init__(self, text, text_color, text_hover_color, text_size, x, y, w, h, c, hc, ht, batch, toggled, float: Literal['left', 'center', 'right']='left'):
-        super().__init__(text, text_color, text_hover_color, text_size, x, y, w, h, c, hc, ht, batch)
-        self.label.anchor_x='center'
-        match float:
-            case 'left':
-                self.label.x = x+text_size*2+self.label.content_width/2
-            case 'center':
-                pass
-            case 'right':
-                self.label.x = x+w/2+text_size*2+self.label.content_width/2
+    def __init__(self, text, text_color, text_hover_color, text_size, x, y, w, h, c, hc, ht, batch, toggled, anchor: Literal['left', 'center', 'right']='left'):
+        super().__init__(text, text_color, text_hover_color, text_size, x, y, w, h, c, hc, ht, batch, anchor=anchor)
+        self.label.x += text_size*2
         self.draw_outline(self.label.x-self.label.content_width/2-text_size*1.3, self.label.y-text_size/1.5, text_size/2, (255,255,255), batch=batch)
         self.draw_checkmark(self.label.x-self.label.content_width/2-text_size*1.3, self.label.y-text_size/1.5, text_size/2, (255,255,255), batch=batch)
         self.toggled = toggled

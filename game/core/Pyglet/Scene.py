@@ -2,7 +2,6 @@ import pyglet
 from core.Pyglet.Background import Background
 from core.Settings import Settings
 from core.Pyglet.widgets import CheckBox, DropDownMenu
-
 settings = Settings()
 settings.load()
 
@@ -43,12 +42,11 @@ class SettingsMenu(Scene):
         w, h = self._master.size
         px, py = 340, 300
         bg = [(32,32,32, 128),(0,0,0, 128) ]
-
+        dd_bg = [(255, 255, 255, 255), (200, 200, 200, 255)]
         self.ui = [
-            CheckBox("Какая-то херня",(200,200, 200), (250, 250, 250), 24, px, h-py/2-(h/4)*2-h/4, w-px*2, h/3-125, *bg, .5,batch=self.batch, toggled=False, float='left'),
-            DropDownMenu(self, "Пенис", (200,200, 200), (250, 250, 250), 24, px, h-py/2-(h/4)*2, w-px*2, h/3-125, *bg, .5,batch=self.batch, items=['1', '2', '3'], custom_name='pizda')
+            DropDownMenu(self, "Меню", (100,100, 100), (50, 50, 50), 24, px, h-py/2, w-px*2, h/3-125, *dd_bg, .5,batch=self.batch, items=['1', '2', '3'], custom_name='Menu', anchor='left'),
+            CheckBox("Чекбокс",(200,200, 200), (250, 250, 250), 24, px, h-py/2-h/4, w-px*2, h/3-125, *bg, .5,batch=self.batch, toggled=False, anchor='left'),
         ]
-
         for ui in self.ui:
             ui.push_handlers(self)
             self.push_handlers(ui)
@@ -65,7 +63,15 @@ class SettingsMenu(Scene):
         print(button.custom_name)
         cmd =  button.custom_name
         match cmd:
-            case "Какая-то херня":
+            case "Menu":
                 button.toggle()
-            case "pizda":
+                if button.toggled:
+                    for child in button.children:
+                        child.push_handlers(self)
+                        self.push_handlers(child)
+                else:
+                    for child in button.children:
+                        child.remove_handlers(self)
+                        self._master.remove_handlers(child)
+            case "Чекбокс":
                 button.toggle()
